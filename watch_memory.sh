@@ -14,7 +14,7 @@ get_swap() {
 
 # Function to print usage
 print_usage() {
-  echo "Usage: $0 [-a | -s] <software_name>"
+  echo "Usage: $0 [-a | -s] <software_name1> [<software_name2> ...]"
   echo 
   echo "Mode      | PSS (ps) | PSS (smaps) | SWAP (smaps)"
   echo "-----------------------------------------------"
@@ -23,7 +23,7 @@ print_usage() {
   echo "Speed     |    ✔     |             |"
   echo
   script_name=$(basename "$0")
-  echo "Example: ./$script_name gnome"
+  echo "Example: ./$script_name kde plasma"
 }
 
 # Check if a software name parameter is provided
@@ -32,10 +32,10 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-# Parse options and software name
+# Parse options and software names
 MODE="default"
 INTERVAL=5
-SOFTWARE=""
+SOFTWARES=()
 
 while true; do
   case "$1" in
@@ -60,22 +60,17 @@ while true; do
       shift
       ;;
     *)
-      if [ -n "$SOFTWARE" ]; then
-        echo "Error: Only one software name is allowed."
-        print_usage
-        exit 1
+      if [ -z "$1" ]; then
+        break
       fi
-      SOFTWARE="$1"
-      shift      
+      SOFTWARES+=("$1")
+      shift
       ;;
   esac
-  if [ -z "$1" ]; then
-    break
-  fi
 done
 
-# If no software name is provided, print usage and exit
-if [ -z "$SOFTWARE" ]; then
+# If no software names are provided, print usage and exit
+if [ ${#SOFTWARES[@]} -eq 0 ]; then
   print_usage
   exit 1
 fi
@@ -83,6 +78,9 @@ fi
 # Export functions so they can be used in subshells
 export -f get_pss
 export -f get_swap
+
+# Create a regex pattern for the software names
+SOFTWARE_PATTERN=$(IFS="|"; echo "${SOFTWARES[*]}")
 
 # Execute the monitoring command with dynamic CMD width
 watch -n $INTERVAL "
@@ -92,7 +90,7 @@ watch -n $INTERVAL "
   else
     echo 'No.     PID    PPID  NLWP  %CPU   PSS(MB)   SWAP(MB) CMD'
   fi
-  ps -eo pid,ppid,nlwp,%cpu,pss,cmd --sort=-pss | grep -i $SOFTWARE | grep -v -E \"grep|$0\" | 
+  ps -eo pid,ppid,nlwp,%cpu,pss,cmd --sort=-pss | grep -E -i \"$SOFTWARE_PATTERN\" | grep -v -E \"grep|$0\" | 
   awk -v terminal_width=\$TERMINAL_WIDTH -v mode=\"$MODE\" -v get_pss_cmd=\"get_pss\" -v get_swap_cmd=\"get_swap\" '
     function fetch_pss(pid) {
       cmd = get_pss_cmd \" \" pid
